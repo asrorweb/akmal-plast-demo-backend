@@ -120,26 +120,41 @@ export const addProductManufacturedHistoryAndBase = async (req, res, next) => {
       await manufacturingHistory.save();
 
       // Update product base model
-      await ProductBaseModel.findOneAndUpdate(
-         { productType: id },
-         { $push: { quantity: { meter: meter, manufactId: manufacturingHistory._id } } },
-         { upsert: true }
-      );
+      const productBase = await ProductBaseModel.findOne({ productType: id });
+      if (productBase) {
+         productBase.meters += meter;
+         await productBase.save();
+      } else {
+         const newProductBase = new ProductBaseModel({
+            productType: id,
+            meters: meter,
+         });
+         await newProductBase.save();
+      }
 
       res.status(201).json({ message: "Махсулот қўшилди", messageUz: "Maxsulot qo‘shildi" });
    } catch (error) {}
 };
 
-// for delete
+// ishlab chiqarilgan maxsulot tarixidan va ombordan olib tashlash
 export const deleteProductManufacturedHistoryAndBase = async (req, res, next) => {
    try {
       const { id } = req.params;
 
       // Ma'lumotlar bazasidagi ma'lumotni yaratilish vaqtini tekshirish
       const productHistory = await ProductManefactureHistory.findById(id);
+
       if (!productHistory) {
          return res.status(404).json({ message: "Ma'lumot topilmadi", messageUz: "Ma'lumot topilmadi" });
       }
+
+      if (productHistory.deleted) {
+         return res
+            .status(400)
+            .json({ message: "Ma'lumot alaqachon o'chirilgan", messageUz: "Ma'lumot alaqachon o'chirilgan" });
+      }
+
+      const { name, meter } = productHistory;
 
       const creationDate = productHistory.createdAt;
       const currentDate = new Date();
@@ -154,22 +169,21 @@ export const deleteProductManufacturedHistoryAndBase = async (req, res, next) =>
          });
       }
 
-      // ProductManefactureHistory koleksiyasidan berilgan "id" bilan yozuvni o'chirish
-      const deletedHistory = await ProductManefactureHistory.findByIdAndDelete(id);
+      const productBase = await ProductBaseModel.findOne({ productType: name });
 
-      // ProductBaseModel koleksiyasidan "id" ni o'z ichiga olgan productni topish
-      const product = await ProductBaseModel.findOneAndUpdate(
-         { "quantity.manufactId": id }, // "quantity" massivida "manufactId" ni qidirish
-         { $pull: { quantity: { manufactId: id } } }, // "quantity" massividan berilgan "manufactId" ni o'chirish
-         { new: true } // Yangi yangilanayotgan malumotni qaytarish
-      );
-      console.log("deleteHistory", deletedHistory);
-      console.log("product", product);
-
-      if (!deletedHistory || !product) {
-         // Agar o'chirish muvaffaqiyatli bo'lmagan bo'lsa 404 Not Found xatosi qaytariladi
-         return res.status(404).json({ message: "Mavjud emas", messageUz: "Mavjud emas" });
+      if (!productBase) {
+         return res.status(404).json({ message: "Ma'lumot topilmadi", messageUz: "Ma'lumot topilmadi" });
       }
+
+      if (productBase.meters < meter) {
+         return res.status(400).json({ message: "Maxsulot sotilgan", messageUz: "Maxsulot sotilgan" });
+      }
+
+      productBase.meters -= meter;
+      productHistory.deleted = true;
+
+      await productHistory.save();
+      await productBase.save();
 
       res.status(200).json({ message: "Махсулот ўчирилди", messageUz: "Maxsulot o'chirildi" });
    } catch (error) {

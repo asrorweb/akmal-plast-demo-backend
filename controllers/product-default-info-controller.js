@@ -2,11 +2,10 @@ import ProductDefaultInfo from "../models/product-default-info-model.js";
 
 export const getAllProductDefaultInfo = async (req, res, next) => {
    try {
-      const product = await ProductDefaultInfo.find().populate({
+      const product = await ProductDefaultInfo.find().sort({ createdAt: "desc" }).populate({
          path: "author",
          select: "-password",
       });
-
       if (!product) return res.status(404).json({ message: "махсулот топилмади", messageUz: "maxsulot topilmadi" });
 
       return res.status(200).json(product);

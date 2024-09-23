@@ -7,19 +7,10 @@ const productBaseSchema = new Schema(
          ref: "ProductDefaultInfo",
          required: true,
       },
-      quantity: [
-         {
-            meter: {
-               type: Number,
-               required: true,
-            },
-            manufactId: {
-               type: Schema.Types.ObjectId,
-               ref: "ProductManefactureHistory",
-               required: true,
-            },
-         },
-      ],
+      meters: {
+         type: Number,
+         default: 0,
+      },
    },
    {
       timestamps: true,
